@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>利用規約</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <h1>利用規約</h1>
+    <div class="terms-content">
+        <p>本サービスは、お客様ご自身が著作権を保有する、またはダウンロードの権利を持つ動画コンテンツを、お客様の管理する「youtubep.com」などのドメインからダウンロードすることを目的としています。</p>
+        <p>以下の事項に同意の上、ご利用ください。</p>
+        <ul>
+            <li>本サービスを利用してダウンロードする動画コンテンツは、お客様ご自身がすべての権利を保有するか、または正当な許諾を得ているものとします。</li>
+            <li>本サービスは、いかなる場合においても、著作権を侵害する行為、または不正なダウンロードを助長する目的で利用されることを禁じます。</li>
+            <li>本サービスの利用により発生したいかなる損害についても、当方は一切の責任を負いません。</li>
+            <li>本規約は予告なく変更される場合があります。</li>
+        </ul>
+        <p>上記規約に同意できない場合、本サービスのご利用はお控えください。</p>
+    </div>
+    <form action="{{ url_for('agree_terms') }}" method="post">
+        <input type="checkbox" id="agree_checkbox" name="agree_checkbox" required>
+        <label for="agree_checkbox">利用規約に同意します</label><br><br>
+        <button type="submit">同意してダウンロード画面へ</button>
+    </form>
+    {# Display flash messages if any #}
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <ul class="flashes">
+                {% for category, message in messages %}
+                    <li class="{{ category }}">{{ message }}</li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+    {% endwith %}
+</body>
+</html>
