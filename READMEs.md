@@ -10,7 +10,10 @@ http://googleusercontent.com/immersive_entry_chip/1
 
 ### 4. `templates/y/about.html` (利用規約ページ)
 
+```
 ```html
+
+
 
 http://googleusercontent.com/immersive_entry_chip/2
 
@@ -23,11 +26,11 @@ http://googleusercontent.com/immersive_entry_chip/3
 
 
 ### 6. `static/css/style.css` (スタイルシート)
-
+```
 ```css
 
 http://googleusercontent.com/immersive_entry_chip/4
-
+```
 
 ### 使い方
 
