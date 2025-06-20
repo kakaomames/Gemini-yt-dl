@@ -11,8 +11,9 @@ app = Flask(__name__)
 app.secret_key = 'your_super_secret_key_for_flash_messages_do_not_use_in_prod'
 
 # Directory to save downloaded logs.
-# Make sure this directory exists and is writable by the application.
-DOWNLOAD_DIR = 'downloads'
+# IMPORTANT FIX: Changed from 'downloads' to '/tmp' to work in read-only file systems (e.g., serverless environments).
+# Files in /tmp are temporary and will be lost after the function execution.
+DOWNLOAD_DIR = '/tmp'
 os.makedirs(DOWNLOAD_DIR, exist_ok=True) # Create the directory if it doesn't exist
 
 
@@ -125,32 +126,9 @@ def process_download():
     # Iterate through each Nadeko endpoint to find the one with the largest Content-Length
     for endpoint_url in nadeko_endpoints:
         try:
-            # Command to get effective URL and headers using curl.
-            # -s: silent (no progress bar)
-            # -L: follow redirects
-            # -D -: dump headers to stdout (or stderr, depending on curl version/redirects)
-            # -o /dev/null: discard content, only interested in headers/redirects
-            # --write-out "%{url_effective}": print the final URL to stdout
-            
-            # Using --head is better for getting only headers, but -D - combined with -o /dev/null
-            # and then parsing the output can simulate -v's redirect tracking for header part.
-            
-            # For consistent verbose output similar to curl -v's full detail for each hop,
-            # we run a command that outputs everything to stderr and parse it.
-            # We explicitly want the verbose output (-v) which goes to stderr, and also the effective URL.
-            # A common way to get both is to run curl -v and then parse its stderr for the effective URL
-            # and Content-Length.
-            
-            # Let's refine the curl command to get effective URL and content length from verbose output.
-            # We'll run curl -L -v and capture stderr, then parse that stderr.
-            # We need a way to determine content-length without downloading.
-            # curl -sLI <URL> is for head request, but doesn't give verbose redirect history well.
-            # For the combined need of -L, -v, and content-length/effective URL, parsing -v's stderr is most robust.
-            
-            # We'll use curl -L -v and pipe output to a temporary file, then read it.
-            # Or, more simply, capture stderr from subprocess.run
-            
             # Use /dev/null for content output to avoid downloading the video itself during this check
+            # Note: os.devnull works for Unix-like systems. For Windows, it's 'NUL'.
+            # A robust solution for cross-platform might need conditional logic or tempfile module.
             curl_cmd = ['curl', '-L', '-v', '-o', os.devnull, endpoint_url]
             
             # Execute curl command, capturing its standard error (where -v output goes)
@@ -219,6 +197,8 @@ def download_log(filename):
     Allows users to download the saved verbose log files.
     send_from_directory is used to prevent directory traversal attacks.
     """
+    # Important: In serverless environments, files in /tmp are transient.
+    # If logs need to persist, an external storage service (e.g., AWS S3) is required.
     return send_from_directory(DOWNLOAD_DIR, filename, as_attachment=True)
 
 
