@@ -1,7 +1,7 @@
 import os
 import re
 import datetime
-import subprocess
+import subprocess # curlコマンド実行のために使用
 
 from flask import Flask, render_template, make_response, request, redirect, url_for, flash, send_from_directory
 
@@ -10,7 +10,7 @@ app = Flask(__name__)
 # Example: os.urandom(24).hex()
 app.secret_key = 'your_super_secret_key_for_flash_messages_do_not_use_in_prod'
 
-# Directory to save downloaded logs and potentially videos.
+# Directory to save downloaded logs.
 # Make sure this directory exists and is writable by the application.
 DOWNLOAD_DIR = 'downloads'
 os.makedirs(DOWNLOAD_DIR, exist_ok=True) # Create the directory if it doesn't exist
@@ -100,18 +100,18 @@ def process_download():
         flash('動画URLを入力してください。', 'error')
         return redirect(url_for('download_page'))
 
-    # Extract video ID from URL like '[https://www.youtubep.com/watch?v=YOUR_ID](https://www.youtubep.com/watch?v=YOUR_ID)'
+    # Extract video ID from URL like 'https://www.youtubep.com/watch?v=YOUR_ID'
     match = re.search(r'watch\?v=([^&]+)', video_page_url)
     if not match:
-        flash('動画ページのURL形式が不正です。例: [https://www.youtubep.com/watch?v=YOUR_ID](https://www.youtubep.com/watch?v=YOUR_ID)', 'error')
+        flash('動画ページのURL形式が不正です。例: https://www.youtubep.com/watch?v=YOUR_ID', 'error')
         return redirect(url_for('download_page'))
     video_id = match.group(1)
 
     # List of Nadeko inverse proxy endpoints to check
     nadeko_endpoints = [
-        f'[https://inv-us2-c.nadeko.net/latest_version?id=](https://inv-us2-c.nadeko.net/latest_version?id=){video_id}&itag=18&check',
-        f'[https://inv-ca1-c.nadeko.net/latest_version?id=](https://inv-ca1-c.nadeko.net/latest_version?id=){video_id}&itag=18&check',
-        f'[https://inv-eu3-c.nadeko.net/latest_version?id=](https://inv-eu3-c.nadeko.net/latest_version?id=){video_id}&itag=18&check',
+        f'https://inv-us2-c.nadeko.net/latest_version?id={video_id}&itag=18&check',
+        f'https://inv-ca1-c.nadeko.net/latest_version?id={video_id}&itag=18&check',
+        f'https://inv-eu3-c.nadeko.net/latest_version?id={video_id}&itag=18&check',
     ]
 
     best_video_url = None
@@ -125,26 +125,49 @@ def process_download():
     # Iterate through each Nadeko endpoint to find the one with the largest Content-Length
     for endpoint_url in nadeko_endpoints:
         try:
-            # Execute curl with -L (follow redirects), -v (verbose output to stderr),
-            # and -o os.devnull (discard content, only capture headers/logs).
-            # Set a timeout to prevent the command from hanging indefinitely.
+            # Command to get effective URL and headers using curl.
+            # -s: silent (no progress bar)
+            # -L: follow redirects
+            # -D -: dump headers to stdout (or stderr, depending on curl version/redirects)
+            # -o /dev/null: discard content, only interested in headers/redirects
+            # --write-out "%{url_effective}": print the final URL to stdout
+            
+            # Using --head is better for getting only headers, but -D - combined with -o /dev/null
+            # and then parsing the output can simulate -v's redirect tracking for header part.
+            
+            # For consistent verbose output similar to curl -v's full detail for each hop,
+            # we run a command that outputs everything to stderr and parse it.
+            # We explicitly want the verbose output (-v) which goes to stderr, and also the effective URL.
+            # A common way to get both is to run curl -v and then parse its stderr for the effective URL
+            # and Content-Length.
+            
+            # Let's refine the curl command to get effective URL and content length from verbose output.
+            # We'll run curl -L -v and capture stderr, then parse that stderr.
+            # We need a way to determine content-length without downloading.
+            # curl -sLI <URL> is for head request, but doesn't give verbose redirect history well.
+            # For the combined need of -L, -v, and content-length/effective URL, parsing -v's stderr is most robust.
+            
+            # We'll use curl -L -v and pipe output to a temporary file, then read it.
+            # Or, more simply, capture stderr from subprocess.run
+            
+            # Use /dev/null for content output to avoid downloading the video itself during this check
             curl_cmd = ['curl', '-L', '-v', '-o', os.devnull, endpoint_url]
-            # subprocess.run executes the command, captures stdout/stderr, and returns a CompletedProcess object.
-            # text=True decodes stdout/stderr as text.
-            # check=False prevents CalledProcessError on non-zero exit codes (we want to collect logs even on errors).
+            
+            # Execute curl command, capturing its standard error (where -v output goes)
+            # text=True decodes output as string, check=False prevents error on non-zero exit code
             result = subprocess.run(curl_cmd, capture_output=True, text=True, check=False, timeout=30)
+            
+            verbose_output = result.stderr # This contains the full -v log
 
-            verbose_output = result.stderr # Verbose output from -v goes to stderr
+            # Extract final effective URL from the verbose output
+            # This regex looks for 'Location:' header on a new line during redirects, or the final URL if no redirect.
+            # It's heuristic and might need adjustment based on actual curl output for specific servers.
+            final_url_match = re.findall(r'^(?:<|>|\*)\s*(?:Location:|\* Connected to|\* Hostname was resolved to).*?(https?://[^\s]+)', verbose_output, re.MULTILINE)
+            current_effective_url = final_url_match[-1] if final_url_match else endpoint_url # Last matched URL is likely the final one
 
-            # Extract the final effective URL from the verbose output (Location header in a redirect)
-            # and Content-Length from response headers.
-            final_url_match = re.search(r'^\*.*? Location: (https?://[^\s]+)', verbose_output, re.MULTILINE)
-            content_length_match = re.search(r'^<\s*content-length:\s*(\d+)', verbose_output, re.MULTILINE | re.IGNORECASE)
-
-            # Use the found effective URL or fallback to the endpoint_url if not found
-            current_effective_url = final_url_match.group(1) if final_url_match else endpoint_url
-            # Convert Content-Length to int, default to -1 if not found
-            current_content_length = int(content_length_match.group(1)) if content_length_match else -1
+            # Extract Content-Length from the verbose output (from the last response headers)
+            content_length_match = re.findall(r'^<\s*content-length:\s*(\d+)', verbose_output, re.MULTILINE | re.IGNORECASE)
+            current_content_length = int(content_length_match[-1]) if content_length_match else -1 # Last matched content-length
 
             all_verbose_logs.append(f"--- Endpoint Check: {endpoint_url} ---")
             all_verbose_logs.append(f"  Executed Command: {' '.join(curl_cmd)}")
@@ -160,7 +183,7 @@ def process_download():
         except subprocess.TimeoutExpired:
             # Handle timeout errors for curl commands
             all_verbose_logs.append(f"--- Endpoint Error: {endpoint_url} ---")
-            all_verbose_logs.append(f"  curl command timed out.\n")
+            all_verbose_logs.append(f"  curl command timed out (after 30 seconds).\n")
         except Exception as e:
             # Catch any other unexpected errors during curl execution or parsing
             all_verbose_logs.append(f"--- Endpoint Unexpected Error: {endpoint_url} ---")
@@ -204,3 +227,4 @@ if __name__ == '__main__':
     # For production deployment, use a WSGI server like Gunicorn or uWSGI.
     # debug=True should ONLY be used during development for automatic code reloading.
     app.run(debug=True)
+
