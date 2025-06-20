@@ -104,7 +104,7 @@ def process_download():
     # Extract video ID from URL like 'https://www.youtubep.com/watch?v=YOUR_ID'
     match = re.search(r'watch\?v=([^&]+)', video_page_url)
     if not match:
-        flash('動画ページのURL形式が不正です。例: https://www.youtubep.com/watch?v=YOUR_ID', 'error')
+        flash('動画ページのURL形式が不正です。例: https://www.youtube.com/watch?v=YOUR_ID', 'error')
         return redirect(url_for('download_page'))
     video_id = match.group(1)
 
