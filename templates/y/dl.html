@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ダウンロード</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <h1>動画ダウンロード</h1>
+    <p>ダウンロードしたい動画のURLを入力してください。</p>
+    <form action="{{ url_for('process_download') }}" method="post">
+        <label for="video_url">動画URL (例: https://www.youtubep.com/watch?v=YOUR_ID):</label><br>
+        <input type="text" id="video_url" name="video_url" size="70" required placeholder="https://www.youtubep.com/watch?v=xxxxxxxxxxx"><br><br>
+        <button type="submit">ダウンロードURLを取得</button>
+    </form>
+
+    <hr> {# Separator line #}
+
+    {# Display video player and download link only if final_video_url is provided #}
+    {% if final_video_url %}
+        <h2>ダウンロード可能な動画</h2>
+        <p>以下のURLは、選択された動画のダウンロードリンクです。</p>
+        
+        <div class="video-container">
+            <video controls width="100%" height="auto">
+                <source src="{{ final_video_url }}" type="video/mp4">
+                お使いのブラウザは動画タグをサポートしていません。
+            </video>
+        </div>
+        <br>
+        <p>動画を直接ダウンロード:</p>
+        <a href="{{ final_video_url }}" download class="download-button">動画をダウンロード (MP4)</a>
+        <br><br>
+    {% endif %}
+
+    {# Display log download link only if log_filename is provided #}
+    {% if log_filename %}
+        <p>ダウンロードプロセスの詳細ログ:</p>
+        <a href="{{ url_for('download_log', filename=log_filename) }}" download class="log-button">詳細ログをダウンロード</a>
+    {% endif %}
+
+    {# Display flash messages if any #}
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <ul class="flashes">
+                {% for category, message in messages %}
+                    <li class="{{ category }}">{{ message }}</li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+    {% endwith %}
+</body>
+</html>
