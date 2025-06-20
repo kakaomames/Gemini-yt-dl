@@ -1,1 +1,27 @@
-<h1><a href="">次へ</a></h1>
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>動画ダウンローダー - はじめに</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <h1>動画ダウンローダーへようこそ</h1>
+    <p>このツールは、動画コンテンツをダウンロードするためのものです。</p>
+    <p>次へ進む前に、利用規約を必ずご確認ください。</p>
+    <form action="{{ url_for('set_poke_dl_cookie') }}" method="get">
+        <button type="submit">次へ</button>
+    </form>
+    {# Display flash messages if any #}
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <ul class="flashes">
+                {% for category, message in messages %}
+                    <li class="{{ category }}">{{ message }}</li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+    {% endwith %}
+</body>
+</html>
